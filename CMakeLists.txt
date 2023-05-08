@@ -34,7 +34,7 @@
 ###############################################################################
 
 # Minimum CMake version
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.16)
 
 # Name of the project
 project(kvirc)
@@ -675,8 +675,6 @@ if(WANT_OPENSSL)
 			list(APPEND LIBS ${OPENSSL_LIBRARIES})
 			set(COMPILE_SSL_SUPPORT 1)
 			set(CMAKE_STATUS_SSL_SUPPORT "Yes")
-			# CMake FindOpenSSL is incomplete and does not add -lcrypto to LIBS...
-			list(APPEND LIBS -lcrypto)
 		endif()
 	else()
 		set(CMAKE_STATUS_SSL_SUPPORT "Not available")
@@ -1110,7 +1108,7 @@ if(WANT_DOXYGEN)
 		set(CMAKE_STATUS_DOXYGEN_SUPPORT "Yes")
 		add_custom_target(
 			devdocs
-			@echo Generating api documentation
+			COMMENT "Generating API documentation..."
 		)
 
 		add_custom_command(
@@ -1145,7 +1143,7 @@ endif()
 if(UNIX)
 	add_custom_target(
 		distclean
-		@echo Cleaning for source distribution
+		COMMENT "Cleaning for source distribution..."
 	)
 	set(
 		DISTCLEANED
