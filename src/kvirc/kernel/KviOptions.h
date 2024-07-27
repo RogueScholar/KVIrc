@@ -423,8 +423,9 @@ DECLARE_OPTION_STRUCT(KviStringListOption, QStringList)
 #define KviOption_stringLogsPath 57                                            /* logfolder */
 #define KviOption_stringLogsDynamicPath 58                                     /* logfolder */
 #define KviOption_stringLogsExportPath 59                                      /* logview module log export */
+#define KviOption_stringQtStyle 60                                             /* themes::general */
 
-#define KVI_NUM_STRING_OPTIONS 60
+#define KVI_NUM_STRING_OPTIONS 61
 
 #define KVI_STRINGLIST_OPTIONS_PREFIX "stringlist"
 #define KVI_STRINGLIST_OPTIONS_PREFIX_LEN 10
@@ -597,8 +598,9 @@ DECLARE_OPTION_STRUCT(KviStringListOption, QStringList)
 #define KviOption_uintMaximumBlowFishKeySize 80
 #define KviOption_uintCustomCursorWidth 81                                    /* Interface */
 #define KviOption_uintUserListMinimumWidth 82
+#define KviOption_uintIrcViewLineVMarginType 83                               /* interface::features::components::ircview */
 
-#define KVI_NUM_UINT_OPTIONS 83
+#define KVI_NUM_UINT_OPTIONS 84
 
 namespace KviIdentdOutputMode
 {

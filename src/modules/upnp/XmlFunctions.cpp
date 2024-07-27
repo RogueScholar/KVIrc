@@ -34,6 +34,7 @@
 #include "XmlFunctions.h"
 
 #include <QStringList>
+#include <QIODevice>
 
 // Helper function, get a specific node
 QDomNode XmlFunctions::getNode(const QDomNode & rootNode, const QString & path)

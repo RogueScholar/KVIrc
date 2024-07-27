@@ -94,9 +94,9 @@
 #include "KviAnimatedPixmap.h"
 #include "KviPixmapUtils.h"
 #include "KviTrayIcon.h"
+#include "KviRegExp.h"
 
 #include <QPainter>
-#include <QRegExp>
 #include <QFontMetrics>
 #include <QMessageBox>
 #include <QPaintEvent>
@@ -260,7 +260,7 @@ KviIrcView::KviIrcView(QWidget * parent, KviWindow * pWnd)
 	m_pFm = nullptr; // will be updated in the first paint event
 	m_iFontDescent = 0;
 	m_iFontLineSpacing = 0;
-	m_iFontLineWidth = 0;
+	m_iFontLineVMargin = 0;
 
 	m_pToolTip = new KviIrcViewToolTip(this);
 
@@ -313,7 +313,7 @@ KviIrcView::KviIrcView(QWidget * parent, KviWindow * pWnd)
 	setSizePolicy(oSizePolicy);
 }
 
-static inline void delete_text_line(KviIrcViewLine * line, QHash<KviIrcViewLine *, KviAnimatedPixmap *> * animatedSmiles)
+static inline void delete_text_line(KviIrcViewLine * line, QMultiHash<KviIrcViewLine *, KviAnimatedPixmap *> * animatedSmiles)
 {
 	QMultiHash<KviIrcViewLine *, KviAnimatedPixmap *>::iterator it = animatedSmiles->find(line);
 	while(it != animatedSmiles->end() && it.key() == line)
@@ -409,6 +409,7 @@ void KviIrcView::setFont(const QFont & f)
 
 	QFont newFont(f);
 	newFont.setKerning(false);
+	newFont.setHintingPreference(QFont::PreferFullHinting);
 	QWidget::setFont(newFont);
 	update();
 }
@@ -1005,7 +1006,7 @@ void KviIrcView::fastScroll(int lines)
 			if(maxLineWidth != l->iMaxLineWidth)
 				calculateLineWraps(l, maxLineWidth);
 			heightToPaint += l->uLineWraps * m_iFontLineSpacing;
-			heightToPaint += (m_iFontLineSpacing + m_iFontDescent);
+			heightToPaint += (m_iFontLineSpacing + m_iFontLineVMargin);
 			lines--;
 			l = l->pPrev;
 		}
@@ -1171,7 +1172,7 @@ void KviIrcView::paintEvent(QPaintEvent * p)
 		if((curBottomCoord - m_iFontLineSpacing) > rectBottom)
 		{
 			// not in update rect... skip
-			curBottomCoord -= (m_iFontLineSpacing + m_iFontDescent);
+			curBottomCoord -= (m_iFontLineSpacing + m_iFontLineVMargin);
 			pCurTextLine = pCurTextLine->pPrev;
 			continue;
 		}
@@ -1201,7 +1202,7 @@ void KviIrcView::paintEvent(QPaintEvent * p)
 		char curFore = defaultFore;
 		char curBack = defaultBack;
 		float curLeftCoord = defLeftCoord;
-		curBottomCoord -= m_iFontDescent; //rise up the text...
+		curBottomCoord -= m_iFontLineVMargin; //rise up the text...
 
 		//
 		// Single text line loop (paint all text blocks)
@@ -1590,7 +1591,7 @@ void KviIrcView::paintEvent(QPaintEvent * p)
 				}
 
 				pa.setPen(pen);
-				pa.drawLine(0, curBottomCoord, widgetWidth, curBottomCoord);
+				pa.drawLine(0, curBottomCoord + m_iFontDescent, widgetWidth, curBottomCoord + m_iFontDescent);
 				//pa.setRasterOp(CopyROP);
 			}       // else was partially visible only
 		}
@@ -1621,7 +1622,7 @@ void KviIrcView::paintEvent(QPaintEvent * p)
 			// the line wraps for the visible lines MUST have been already calculated
 			// for this view width
 			lineWrapsHeight = (pCurTextLine->uLineWraps) * m_iFontLineSpacing;
-			curBottomCoord -= lineWrapsHeight + m_iFontLineSpacing + m_iFontDescent;
+			curBottomCoord -= lineWrapsHeight + m_iFontLineSpacing + m_iFontLineVMargin;
 			pCurTextLine = pCurTextLine->pPrev;
 		}
 
@@ -1684,6 +1685,8 @@ void KviIrcView::paintEvent(QPaintEvent * p)
 // The IrcView : calculate line wraps
 //
 
+#define IRCVIEW_ISHIGHSURROGATE(c) ((c).unicode() >= 0xD800 && (c).unicode() <= 0xDBFF)
+#define IRCVIEW_ISLOWSURROGATE(c) ((c).unicode() >= 0xDC00 && (c).unicode() <= 0xDFFF)
 #define IRCVIEW_WCHARWIDTH(c) (((c).unicode() < 0xff) ? m_iFontCharacterWidth[(c).unicode()] : m_pFm->horizontalAdvance(c))
 
 void KviIrcView::calculateLineWraps(KviIrcViewLine * ptr, int maxWidth)
@@ -1730,9 +1733,17 @@ void KviIrcView::calculateLineWraps(KviIrcViewLine * ptr, int maxWidth)
 			while(curBlockLen < maxBlockLen)
 			{
 				// FIXME: this is ugly :/
-				curBlockWidth += IRCVIEW_WCHARWIDTH(*p);
-				curBlockLen++;
-				p++;
+				if(IRCVIEW_ISHIGHSURROGATE(*p) && curBlockLen < maxBlockLen - 1)
+				{
+					// extract and calculate width of both chars together
+					curBlockWidth += m_pFm->horizontalAdvance(QString(p, 2));
+					curBlockLen += 2;
+					p += 2;
+				} else {
+					curBlockWidth += IRCVIEW_WCHARWIDTH(*p);
+					curBlockLen++;
+					p++;
+				}
 			}
 		}
 
@@ -1768,7 +1779,15 @@ void KviIrcView::calculateLineWraps(KviIrcViewLine * ptr, int maxWidth)
 		{
 			p--;
 			curBlockLen--;
-			curLineWidth -= IRCVIEW_WCHARWIDTH(*p);
+			if(IRCVIEW_ISLOWSURROGATE(*p) && curBlockLen > 0)
+			{
+				// avoid splitting in the middle of a surrogate pair
+				p--;
+				curBlockLen--;
+				curLineWidth -= m_pFm->horizontalAdvance(QString(p, 2));
+			} else {
+				curLineWidth -= IRCVIEW_WCHARWIDTH(*p);
+			}
 		}
 
 		// Now look for a space (or a tabulation)
@@ -1776,7 +1795,15 @@ void KviIrcView::calculateLineWraps(KviIrcViewLine * ptr, int maxWidth)
 		{
 			p--;
 			curBlockLen--;
-			curLineWidth -= IRCVIEW_WCHARWIDTH(*p);
+			if(IRCVIEW_ISLOWSURROGATE(*p) && curBlockLen > 0)
+			{
+				// avoid splitting in the middle of a surrogate pair
+				p--;
+				curBlockLen--;
+				curLineWidth -= m_pFm->horizontalAdvance(QString(p, 2));
+			} else {
+				curLineWidth -= IRCVIEW_WCHARWIDTH(*p);
+			}
 		}
 
 		if(curBlockLen == 0)
@@ -1805,16 +1832,31 @@ void KviIrcView::calculateLineWraps(KviIrcViewLine * ptr, int maxWidth)
 				uint uLoopedChars = 0;
 				do
 				{
-					curBlockLen++;
 					p++;
-					curLineWidth += IRCVIEW_WCHARWIDTH(*p);
+					curBlockLen++;
 					uLoopedChars++;
+					if(IRCVIEW_ISHIGHSURROGATE(*p) && curBlockLen < maxBlockLen - 1)
+					{
+						// extract and calculate width of both chars together
+						curLineWidth += m_pFm->horizontalAdvance(QString(p, 2));
+						// add the second char
+						p++;
+						curBlockLen++;
+					} else {
+						curLineWidth += IRCVIEW_WCHARWIDTH(*p);
+					}
 				} while((curLineWidth < maxWidth) && (curBlockLen < maxBlockLen));
 				// Now overrun, go back 1 char (if we ran over at least 2 chars)
 				if(uLoopedChars > 1)
 				{
 					p--;
 					curBlockLen--;
+					if(IRCVIEW_ISLOWSURROGATE(*p) && curBlockLen > 0)
+					{
+						// avoid splitting in the middle of a surrogate pair
+						p--;
+						curBlockLen--;
+					}
 				}
 			}
 			//K...wrap
@@ -1937,15 +1979,35 @@ bool KviIrcView::checkSelectionBlock(KviIrcViewLine * line, int bufIndex)
 			m_pWrappedBlockSelectionInfo->part_2_width = 0;
 			for(int i = 0; i < m_pWrappedBlockSelectionInfo->part_1_length; i++)
 			{
-				int www = IRCVIEW_WCHARWIDTH(*p);
+				int www;
+				if(IRCVIEW_ISHIGHSURROGATE(*p) && i < m_pWrappedBlockSelectionInfo->part_1_length - 1)
+				{
+					// extract and calculate width of both chars together
+					www = m_pFm->horizontalAdvance(QString(p, 2));
+					p += 2;
+					i++;
+				} else {
+					www = IRCVIEW_WCHARWIDTH(*p);
+					p++;
+				}
+
 				m_pWrappedBlockSelectionInfo->part_1_width += www;
-				p++;
 			}
 			for(int i = 0; i < m_pWrappedBlockSelectionInfo->part_2_length; i++)
 			{
-				int www = IRCVIEW_WCHARWIDTH(*p);
+				int www;
+				if(IRCVIEW_ISHIGHSURROGATE(*p) && i < m_pWrappedBlockSelectionInfo->part_2_length - 1)
+				{
+					// extract and calculate width of both chars together
+					www = m_pFm->horizontalAdvance(QString(p, 2));
+					p += 2;
+					i++;
+				} else {
+					www = IRCVIEW_WCHARWIDTH(*p);
+					p++;
+				}
+
 				m_pWrappedBlockSelectionInfo->part_2_width += www;
-				p++;
 			}
 			m_pWrappedBlockSelectionInfo->part_3_width = line->pBlocks[bufIndex].block_width - m_pWrappedBlockSelectionInfo->part_1_width - m_pWrappedBlockSelectionInfo->part_2_width;
 			return true;
@@ -1959,9 +2021,19 @@ bool KviIrcView::checkSelectionBlock(KviIrcViewLine * line, int bufIndex)
 			m_pWrappedBlockSelectionInfo->part_1_width = 0;
 			for(int i = 0; i < m_pWrappedBlockSelectionInfo->part_1_length; i++)
 			{
-				int www = IRCVIEW_WCHARWIDTH(*p);
+				int www;
+				if(IRCVIEW_ISHIGHSURROGATE(*p) && i < m_pWrappedBlockSelectionInfo->part_1_length - 1)
+				{
+					// extract and calculate width of both chars together
+					www = m_pFm->horizontalAdvance(QString(p, 2));
+					p += 2;
+					i++;
+				} else {
+					www = IRCVIEW_WCHARWIDTH(*p);
+					p++;
+				}
+
 				m_pWrappedBlockSelectionInfo->part_1_width += www;
-				p++;
 			}
 			m_pWrappedBlockSelectionInfo->part_2_length = line->pBlocks[bufIndex].block_len - m_pWrappedBlockSelectionInfo->part_1_length;
 			m_pWrappedBlockSelectionInfo->part_2_width = line->pBlocks[bufIndex].block_width - m_pWrappedBlockSelectionInfo->part_1_width;
@@ -1976,9 +2048,19 @@ bool KviIrcView::checkSelectionBlock(KviIrcViewLine * line, int bufIndex)
 			m_pWrappedBlockSelectionInfo->part_1_width = 0;
 			for(int i = 0; i < m_pWrappedBlockSelectionInfo->part_1_length; i++)
 			{
-				int www = IRCVIEW_WCHARWIDTH(*p);
+				int www;
+				if(IRCVIEW_ISHIGHSURROGATE(*p) && i < m_pWrappedBlockSelectionInfo->part_1_length - 1)
+				{
+					// extract and calculate width of both chars together
+					www = m_pFm->horizontalAdvance(QString(p, 2));
+					p += 2;
+					i++;
+				} else {
+					www = IRCVIEW_WCHARWIDTH(*p);
+					p++;
+				}
+
 				m_pWrappedBlockSelectionInfo->part_1_width += www;
-				p++;
 			}
 			m_pWrappedBlockSelectionInfo->part_2_length = line->pBlocks[bufIndex].block_len - m_pWrappedBlockSelectionInfo->part_1_length;
 			m_pWrappedBlockSelectionInfo->part_2_width = line->pBlocks[bufIndex].block_width - m_pWrappedBlockSelectionInfo->part_1_width;
@@ -2020,9 +2102,19 @@ bool KviIrcView::checkSelectionBlock(KviIrcViewLine * line, int bufIndex)
 			m_pWrappedBlockSelectionInfo->part_1_width = 0;
 			for(int i = 0; i < m_pWrappedBlockSelectionInfo->part_1_length; i++)
 			{
-				int www = IRCVIEW_WCHARWIDTH(*p);
+				int www;
+				if(IRCVIEW_ISHIGHSURROGATE(*p) && i < m_pWrappedBlockSelectionInfo->part_1_length - 1)
+				{
+					// extract and calculate width of both chars together
+					www = m_pFm->horizontalAdvance(QString(p, 2));
+					p += 2;
+					i++;
+				} else {
+					www = IRCVIEW_WCHARWIDTH(*p);
+					p++;
+				}
+
 				m_pWrappedBlockSelectionInfo->part_1_width += www;
-				p++;
 			}
 			m_pWrappedBlockSelectionInfo->part_2_length = line->pBlocks[bufIndex].block_len - m_pWrappedBlockSelectionInfo->part_1_length;
 			m_pWrappedBlockSelectionInfo->part_2_width = line->pBlocks[bufIndex].block_width - m_pWrappedBlockSelectionInfo->part_1_width;
@@ -2065,9 +2157,19 @@ bool KviIrcView::checkSelectionBlock(KviIrcViewLine * line, int bufIndex)
 			m_pWrappedBlockSelectionInfo->part_1_width = 0;
 			for(int i = 0; i < m_pWrappedBlockSelectionInfo->part_1_length; i++)
 			{
-				int www = IRCVIEW_WCHARWIDTH(*p);
+				int www;
+				if(IRCVIEW_ISHIGHSURROGATE(*p) && i < m_pWrappedBlockSelectionInfo->part_1_length - 1)
+				{
+					// extract and calculate width of both chars together
+					www = m_pFm->horizontalAdvance(QString(p, 2));
+					p += 2;
+					i++;
+				} else {
+					www = IRCVIEW_WCHARWIDTH(*p);
+					p++;
+				}
+
 				m_pWrappedBlockSelectionInfo->part_1_width += www;
-				p++;
 			}
 			m_pWrappedBlockSelectionInfo->part_2_length = line->pBlocks[bufIndex].block_len - m_pWrappedBlockSelectionInfo->part_1_length;
 			m_pWrappedBlockSelectionInfo->part_2_width = line->pBlocks[bufIndex].block_width - m_pWrappedBlockSelectionInfo->part_1_width;
@@ -2095,7 +2197,17 @@ void KviIrcView::recalcFontVariables(const QFont & font, const QFontInfo & fi)
 		m_iFontLineSpacing = KVI_IRCVIEW_PIXMAP_SIZE;
 
 	m_iFontDescent = m_pFm->descent();
-	m_iFontLineWidth = m_pFm->lineWidth();
+
+	switch(KVI_OPTION_UINT(KviOption_uintIrcViewLineVMarginType))
+	{
+		case 0:
+			m_iFontLineVMargin = 0;
+			break;
+		case 1:
+		default:
+			m_iFontLineVMargin = m_iFontDescent;
+			break;
+	}
 
 	// cache the first 256 characters
 	for(unsigned short i = 0; i < 256; i++)
@@ -2121,9 +2233,6 @@ void KviIrcView::recalcFontVariables(const QFont & font, const QFontInfo & fi)
 
 	// fix for #489 (horizontal tabulations)
 	m_iFontCharacterWidth[9] = m_pFm->horizontalAdvance("\t");
-
-	if(m_iFontLineWidth < 1)
-		m_iFontLineWidth = 1;
 
 	if(KVI_OPTION_BOOL(KviOption_boolIrcViewTimestamp))
 	{
@@ -2270,7 +2379,7 @@ void KviIrcView::chooseBackground()
 	QPixmap p(f);
 	if(p.isNull())
 	{
-		QMessageBox::information(this, __tr2qs("Invalid Image - KVIrc"), __tr2qs("Failed to load the selected image!"), __tr2qs("OK"));
+		QMessageBox::information(this, __tr2qs("Invalid Image - KVIrc"), __tr2qs("Failed to load the selected image!"));
 		return;
 	}
 
@@ -2384,13 +2493,13 @@ void KviIrcView::ensureLineVisible(KviIrcViewLine * pLineToShow)
 		{
 			if(pCurLine->iMaxLineWidth != maxLineWidth)
 				calculateLineWraps(pCurLine, maxLineWidth);
-			curBottomCoord += ((pCurLine->uLineWraps + 1) * m_iFontLineSpacing) + m_iFontDescent;
+			curBottomCoord += ((pCurLine->uLineWraps + 1) * m_iFontLineSpacing) + m_iFontLineVMargin;
 			pCurLine = pCurLine->pPrev;
 			sc--;
 		}
 		if(pLine == pLineToShow)
 			break;
-		curBottomCoord -= m_iFontDescent;
+		curBottomCoord -= m_iFontLineVMargin;
 		pLine = pLine->pPrev;
 	}
 
@@ -2439,7 +2548,7 @@ void KviIrcView::findNext(const QString & szText, bool bCaseS, bool bRegExp, boo
 
 			if(bRegExp)
 			{
-				QRegExp re(szText, bCaseS ? Qt::CaseSensitive : Qt::CaseInsensitive, bExtended ? QRegExp::RegExp : QRegExp::Wildcard);
+				KviRegExp re(szText, bCaseS ? KviRegExp::CaseSensitive : KviRegExp::CaseInsensitive, bExtended ? KviRegExp::RegExp : KviRegExp::Wildcard);
 				idx = re.indexIn(l->szText, 0);
 			}
 			else
@@ -2498,7 +2607,7 @@ void KviIrcView::findPrev(const QString & szText, bool bCaseS, bool bRegExp, boo
 
 			if(bRegExp)
 			{
-				QRegExp re(szText, bCaseS ? Qt::CaseSensitive : Qt::CaseInsensitive, bExtended ? QRegExp::RegExp : QRegExp::Wildcard);
+				KviRegExp re(szText, bCaseS ? KviRegExp::CaseSensitive : KviRegExp::CaseInsensitive, bExtended ? KviRegExp::RegExp : KviRegExp::Wildcard);
 				idx = re.indexIn(l->szText, 0);
 			}
 			else
@@ -2537,13 +2646,13 @@ KviIrcViewLine * KviIrcView::getVisibleLineAt(int yPos)
 {
 	KviIrcViewLine * l = m_pCurLine;
 	int toolWidgetHeight = (m_pToolWidget && m_pToolWidget->isVisible()) ? m_pToolWidget->sizeHint().height() : 0;
-	int iTop = height() + m_iFontDescent - KVI_IRCVIEW_VERTICAL_BORDER - toolWidgetHeight;
+	int iTop = height() + m_iFontLineVMargin - KVI_IRCVIEW_VERTICAL_BORDER - toolWidgetHeight;
 
 	while(iTop > yPos)
 	{
 		if(l)
 		{
-			iTop -= ((l->uLineWraps + 1) * m_iFontLineSpacing) + m_iFontDescent;
+			iTop -= ((l->uLineWraps + 1) * m_iFontLineSpacing) + m_iFontLineVMargin;
 			if(iTop <= yPos)
 				return l;
 			l = l->pPrev;
@@ -2566,7 +2675,7 @@ int KviIrcView::getVisibleCharIndexAt(KviIrcViewLine *, int xPos, int yPos)
 
 	KviIrcViewLine * l = m_pCurLine;
 	int toolWidgetHeight = (m_pToolWidget && m_pToolWidget->isVisible()) ? m_pToolWidget->sizeHint().height() : 0;
-	int iTop = height() + m_iFontDescent - KVI_IRCVIEW_VERTICAL_BORDER - toolWidgetHeight;
+	int iTop = height() + m_iFontLineVMargin - KVI_IRCVIEW_VERTICAL_BORDER - toolWidgetHeight;
 
 	// our current line begins after the mouse position... go on
 	while(iTop > yPos)
@@ -2576,7 +2685,7 @@ int KviIrcView::getVisibleCharIndexAt(KviIrcViewLine *, int xPos, int yPos)
 			return -1;
 
 		// subtract from iTop the height of the current line (aka go to the end of the previous / start of the current point)
-		iTop -= ((l->uLineWraps + 1) * m_iFontLineSpacing) + m_iFontDescent;
+		iTop -= ((l->uLineWraps + 1) * m_iFontLineSpacing) + m_iFontLineVMargin;
 
 		// we're still below the mouse position.. go on
 		if(iTop > yPos)
@@ -2662,14 +2771,14 @@ int KviIrcView::getVisibleCharIndexAt(KviIrcViewLine *, int xPos, int yPos)
 					oldIndex = retValue; oldLeft = iLeft;
 
 					curChar = l->szText.at(l->pBlocks[i].block_start + retValue);
-					if (curChar >= 0xD800 && curChar <= 0xDC00) // Surrogate pair
+					if (IRCVIEW_ISHIGHSURROGATE(curChar)) // Surrogate pair
 					{
-						iLeft += m_pFm->horizontalAdvance(l->szText.mid(retValue), 2);
+						iLeft += m_pFm->horizontalAdvance(l->szText.mid(l->pBlocks[i].block_start + retValue), 2);
 						retValue+=2;
 					}
 					else
 					{
-						iLeft += (curChar < 0xff) ? m_iFontCharacterWidth[curChar.unicode()] : m_pFm->horizontalAdvance(curChar);
+						iLeft += (curChar.unicode() < 0xff) ? m_iFontCharacterWidth[curChar.unicode()] : m_pFm->horizontalAdvance(curChar);
 						retValue++;
 					}
 				}
@@ -2700,7 +2809,7 @@ KviIrcViewWrappedBlock * KviIrcView::getLinkUnderMouse(int xPos, int yPos, QRect
 
 	KviIrcViewLine * l = m_pCurLine;
 	int toolWidgetHeight = (m_pToolWidget && m_pToolWidget->isVisible()) ? m_pToolWidget->sizeHint().height() : 0;
-	int iTop = height() + m_iFontDescent - KVI_IRCVIEW_VERTICAL_BORDER - toolWidgetHeight;
+	int iTop = height() + m_iFontLineVMargin - KVI_IRCVIEW_VERTICAL_BORDER - toolWidgetHeight;
 
 	// our current line begins after the mouse position... go on
 	while(iTop > yPos)
@@ -2710,7 +2819,7 @@ KviIrcViewWrappedBlock * KviIrcView::getLinkUnderMouse(int xPos, int yPos, QRect
 			return nullptr;
 
 		// subtract from iTop the height of the current line (aka go to the end of the previous / start of the current point)
-		iTop -= ((l->uLineWraps + 1) * m_iFontLineSpacing) + m_iFontDescent;
+		iTop -= ((l->uLineWraps + 1) * m_iFontLineSpacing) + m_iFontLineVMargin;
 
 		// we're still below the mouse position.. go on
 		if(iTop > yPos)
@@ -2871,7 +2980,7 @@ KviIrcViewWrappedBlock * KviIrcView::getLinkUnderMouse(int xPos, int yPos, QRect
 								*pRect = QRect(iLeftBorder,
 								    bHadWordWraps ? iLastEscapeBlockTop : iTop,
 								    iRightBorder,
-								    ((uLineWraps + 1) * m_iFontLineSpacing) + m_iFontDescent);
+								    ((uLineWraps + 1) * m_iFontLineSpacing) + m_iFontLineVMargin);
 							}
 							if(linkCmd)
 							{
@@ -2943,7 +3052,7 @@ KviIrcViewWrappedBlock * KviIrcView::getLinkUnderMouse(int xPos, int yPos, QRect
 								*pRect = QRect(iLastLeft,
 								    bHadWordWraps ? firstRowTop : iTop,
 								    iBlockWidth,
-								    ((l->uLineWraps + 1) * m_iFontLineSpacing) + m_iFontDescent);
+								    ((l->uLineWraps + 1) * m_iFontLineSpacing) + m_iFontLineVMargin);
 							}
 							if(linkCmd)
 							{

@@ -94,6 +94,7 @@ static bool bCompleterReady = false;
 ScriptEditorWidget::ScriptEditorWidget(QWidget * pParent)
     : QTextEdit(pParent)
 {
+	m_pStartTimer = nullptr;
 	m_pSyntaxHighlighter = nullptr;
 	setTabStopDistance(48);
 	setAcceptRichText(false);
@@ -137,23 +138,28 @@ ScriptEditorWidget::~ScriptEditorWidget()
 	if(m_pCompleter)
 		delete m_pCompleter;
 	disableSyntaxHighlighter();
+	if(m_pStartTimer) {
+		m_pStartTimer->stop();
+		m_pStartTimer->deleteLater();
+		m_pStartTimer = nullptr;
+	}
 }
 
 void ScriptEditorWidget::checkReadyCompleter()
 {
 	if(bCompleterReady)
 	{
-		m_pStartTimer->stop();
-		delete m_pStartTimer;
-		m_pStartTimer = nullptr;
+		if(m_pStartTimer) {
+			m_pStartTimer->stop();
+			m_pStartTimer->deleteLater();
+			m_pStartTimer = nullptr;
+		}
 		loadCompleterFromFile();
 	}
 }
 
 void ScriptEditorWidget::asyncCompleterCreation()
 {
-	//static int iIndex = 0;
-	//static int iModulesCount = 0;
 	if(!iIndex)
 	{
 		m_pListCompletition = new QStringList();
@@ -173,9 +179,6 @@ void ScriptEditorWidget::asyncCompleterCreation()
 		m_pListModulesNames = new QStringList(d.entryList(QDir::Files | QDir::Readable));
 		iModulesCount = m_pListModulesNames->count();
 	}
-
-	if (iIndex <= m_pListModulesNames->size())
-		return;
 
 	QString szModuleName = m_pListModulesNames->at(iIndex);
 	iIndex++;
@@ -199,9 +202,11 @@ void ScriptEditorWidget::asyncCompleterCreation()
 
 	if(iIndex == iModulesCount)
 	{
-		m_pStartTimer->stop();
-		m_pStartTimer->deleteLater();
-		m_pStartTimer = nullptr;
+		if(m_pStartTimer) {
+			m_pStartTimer->stop();
+			m_pStartTimer->deleteLater();
+			m_pStartTimer = nullptr;
+		}
 		QString szTmp("kvscompleter.idx");
 		QString szPath;
 		g_pApp->getLocalKvircDirectory(szPath, KviApplication::ConfigPlugins, szTmp);
@@ -268,8 +273,13 @@ void ScriptEditorWidget::insertCompletion(const QString & szCompletion)
 void ScriptEditorWidget::contextMenuEvent(QContextMenuEvent * e)
 {
 	QMenu * pMenu = createStandardContextMenu();
-	pMenu->addAction(__tr2qs_ctx("Context Sensitive Help", "editor"), this, SLOT(slotHelp()), Qt::CTRL + Qt::Key_H);
-	pMenu->addAction(__tr2qs_ctx("&Replace", "editor"), this, SLOT(slotReplace()), Qt::CTRL + Qt::Key_R);
+#if (QT_VERSION < QT_VERSION_CHECK(6, 3, 0))
+	pMenu->addAction(__tr2qs_ctx("Context Sensitive Help", "editor"), this, SLOT(slotHelp()), Qt::CTRL | Qt::Key_H);
+	pMenu->addAction(__tr2qs_ctx("&Replace", "editor"), this, SLOT(slotReplace()), Qt::CTRL | Qt::Key_R);
+#else
+	pMenu->addAction(__tr2qs_ctx("Context Sensitive Help", "editor"), Qt::CTRL | Qt::Key_H, this, SLOT(slotHelp()));
+	pMenu->addAction(__tr2qs_ctx("&Replace", "editor"), Qt::CTRL | Qt::Key_R, this, SLOT(slotReplace()));
+#endif
 	pMenu->exec(e->globalPos());
 	delete pMenu;
 }
@@ -452,8 +462,9 @@ bool ScriptEditorWidget::contextSensitiveHelp() const
 	QTextCursor cur = cursorForPosition(QPoint(r.x(), r.y()));
 	cur.select(QTextCursor::WordUnderCursor);
 	QString szText = cur.selectedText();
-	QString szTmp = szText;
-
+	KviQString::escapeKvs(&szText);
+	QString szParse = QString("timer -s (help,0){ help.open %1; }").arg(szText);
+	KviKvsScript::run(szParse,(KviWindow*)g_pApp->activeConsole());
 	return true;
 }
 
@@ -465,7 +476,7 @@ ScriptEditorWidgetColorOptions::ScriptEditorWidgetColorOptions(QWidget * pParent
 	QGridLayout * g = new QGridLayout(this);
 	KviTalVBox * box = new KviTalVBox(this);
 	g->addWidget(box, 0, 0);
-	box->setMargin(0);
+	box->setContentsMargins(0, 0, 0, 0);
 	box->setSpacing(0);
 	box->setMinimumWidth(280);
 
@@ -521,23 +532,23 @@ ScriptEditorSyntaxHighlighter::ScriptEditorSyntaxHighlighter(ScriptEditorWidget 
 
 	KviScriptHighlightingRule rule;
 
-	rule.pattern = QRegExp("([=()[\\]!\"?<>;:.,+-])+");
+	rule.pattern = KviRegExp("([=()[\\]!\"?<>;:.,+-])+");
 	rule.format = punctuationFormat;
 	highlightingRules.append(rule);
 
-	rule.pattern = QRegExp("[{};](|[a-zA-Z]|[a-zA-Z]+[a-zA-Z0-9_\\.:]*)");
+	rule.pattern = KviRegExp("[{};]([a-zA-Z]+[a-zA-Z0-9_\\.:]*)");
 	rule.format = keywordFormat;
 	highlightingRules.append(rule);
 
-	rule.pattern = QRegExp("[$](|[a-zA-Z0-9]+[a-zA-Z0-9_\\.:]*)");
+	rule.pattern = KviRegExp("[$]([a-zA-Z0-9]+[a-zA-Z0-9_\\.:]*)");
 	rule.format = functionFormat;
 	highlightingRules.append(rule);
 
-	rule.pattern = QRegExp("[%](|[a-zA-Z]|[a-zA-Z]+[a-zA-Z0-9_\\.]*)");
+	rule.pattern = KviRegExp("[%]([a-zA-Z]+[a-zA-Z0-9_\\.]*)");
 	rule.format = variableFormat;
 	highlightingRules.append(rule);
 
-	rule.pattern = QRegExp("([{}])+");
+	rule.pattern = KviRegExp("([{}])+");
 	rule.format = bracketFormat;
 	highlightingRules.append(rule);
 }
@@ -677,16 +688,16 @@ void ScriptEditorSyntaxHighlighter::highlightBlock(const QString & szText)
 	int index = 0;
 	foreach(KviScriptHighlightingRule rule, highlightingRules)
 	{
-		QRegExp expression(rule.pattern);
+		KviRegExp expression(rule.pattern);
 		QString sz = expression.pattern();
 
-		index = szText.indexOf(expression, iIndexStart);
+		index = expression.indexIn(szText, iIndexStart);
 
 		while(index >= 0)
 		{
 			int length = expression.matchedLength();
 			setFormat(index, length, rule.format);
-			index = szText.indexOf(expression, index + length);
+			index = expression.indexIn(szText, index + length);
 		}
 	}
 

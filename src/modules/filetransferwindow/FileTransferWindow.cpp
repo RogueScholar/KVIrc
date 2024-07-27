@@ -188,7 +188,6 @@ void FileTransferWidget::mouseDoubleClickEvent(QMouseEvent * e)
 void FileTransferWidget::paintEvent(QPaintEvent * event)
 {
 	QPainter * p = new QPainter(viewport());
-	QStyleOptionViewItem option = viewOptions();
 	QRect rect = event->rect();
 
 #ifdef COMPILE_PSEUDO_TRANSPARENCY
@@ -641,15 +640,14 @@ void FileTransferWindow::deleteLocalFile()
 	QString szName = pTransfer->localFileName();
 	QString szTmp = QString(__tr2qs_ctx("Do you really want to delete the file %1?", "filetransferwindow")).arg(szName);
 
-	if(QMessageBox::warning(this, __tr2qs_ctx("Confirm File Delete - KVIrc", "filetransferwindow"),
-	       szTmp, __tr2qs_ctx("Yes", "filetransferwindow"), __tr2qs_ctx("No", "filetransferwindow"))
-	    != 0)
+	if(QMessageBox::question(this, __tr2qs_ctx("Confirm File Delete - KVIrc", "filetransferwindow"),
+	       szTmp)
+	    != QMessageBox::Yes)
 		return;
 
 	if(!QFile::remove(szName))
 		QMessageBox::warning(this, __tr2qs_ctx("Deleting File Failed - KVIrc", "filetransferwindow"),
-		    __tr2qs_ctx("Failed to remove the file", "filetransferwindow"),
-		    __tr2qs_ctx("OK", "filetransferwindow"));
+		    __tr2qs_ctx("Failed to remove the file", "filetransferwindow"));
 }
 
 void FileTransferWindow::openLocalFile()
@@ -834,7 +832,8 @@ void FileTransferWindow::clearAll()
 
 	// If any transfer is active asks for confirm
 	if(!bHaveAllTerminated)
-		if(QMessageBox::warning(this, __tr2qs_ctx("Confirm Clearing All Transfers - KVIrc", "filetransferwindow"), szTmp, __tr2qs_ctx("Yes", "filetransferwindow"), __tr2qs_ctx("No", "filetransferwindow")) != 0)
+		if(QMessageBox::question(this, __tr2qs_ctx("Confirm Clearing All Transfers - KVIrc", "filetransferwindow")
+			, szTmp) != QMessageBox::Yes)
 			return;
 
 	KviFileTransferManager::instance()->killAllTransfers();

@@ -268,7 +268,7 @@ void RawEditorWidget::removeCurrentHandler()
 		m_pEditor->setEnabled(false);
 		m_pNameEditor->setEnabled(false);
 		if(!parent->childCount())
-			parent->setEnabled(false);
+			delete parent;
 	}
 }
 
@@ -344,7 +344,7 @@ void RawEditorWidget::currentItemChanged(QTreeWidgetItem * it, QTreeWidgetItem *
 {
 	KVI_ASSERT(m_bOneTimeSetupDone);
 	saveLastEditedItem();
-	if(it->parent())
+	if(it && it->parent())
 	{
 		m_pLastEditedItem = (RawHandlerTreeWidgetItem *)it;
 		m_pNameEditor->setEnabled(true);
@@ -358,7 +358,7 @@ void RawEditorWidget::currentItemChanged(QTreeWidgetItem * it, QTreeWidgetItem *
 		m_pNameEditor->setEnabled(false);
 		m_pNameEditor->setText("");
 		m_pEditor->setEnabled(false);
-		QString szTmp = QString(__tr2qs_ctx("\n\nRAW Event:\n%1", "editor")).arg(((RawHandlerTreeWidgetItem *)it)->text(0));
+		QString szTmp = it ? QString(__tr2qs_ctx("\n\nRAW Event:\n%1", "editor")).arg(((RawHandlerTreeWidgetItem *)it)->text(0)) : "";
 		m_pEditor->setText(szTmp);
 	}
 }
@@ -423,7 +423,7 @@ void RawEditorWidget::exportCurrentHandler()
 
 	if(!KviFileUtils::writeFile(szFile, szOut))
 	{
-		QMessageBox::warning(this, __tr2qs_ctx("Writing to File Failed - KVIrc", "editor"), __tr2qs_ctx("Unable to write to the RAW events file.", "editor"), __tr2qs_ctx("&OK", "editor"));
+		QMessageBox::warning(this, __tr2qs_ctx("Writing to File Failed - KVIrc", "editor"), __tr2qs_ctx("Unable to write to the RAW events file.", "editor"));
 	}
 }
 
@@ -460,7 +460,7 @@ void RawEditorWidget::exportAllEvents()
 
 	if(!KviFileUtils::writeFile(szFile, out))
 	{
-		QMessageBox::warning(this, __tr2qs_ctx("Writing to File Failed - KVIrc", "editor"), __tr2qs_ctx("Unable to write to the RAW events file.", "editor"), __tr2qs_ctx("OK", "editor"));
+		QMessageBox::warning(this, __tr2qs_ctx("Writing to File Failed - KVIrc", "editor"), __tr2qs_ctx("Unable to write to the RAW events file.", "editor"));
 	}
 }
 

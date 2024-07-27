@@ -39,7 +39,7 @@ const int item_flags[] = {
 	Qt::ItemIsDropEnabled,
 	Qt::ItemIsUserCheckable,
 	Qt::ItemIsEnabled,
-	Qt::ItemIsTristate
+	Qt::ItemIsUserTristate
 };
 
 const char * const itemflags_tbl[] = {
@@ -418,7 +418,11 @@ KVSO_CLASS_FUNCTION(listWidget, setForeground)
 				return true;
 			}
 		}
+#if (QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
 		col.setNamedColor(szColor);
+#else
+		col = QColor::fromString(szColor);
+#endif
 		col.setAlpha(iOpacity);
 	}
 	else

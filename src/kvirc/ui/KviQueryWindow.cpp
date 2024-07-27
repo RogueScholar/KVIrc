@@ -66,7 +66,7 @@ KviQueryWindow::KviQueryWindow(KviConsoleWindow * lpConsole, const QString & szN
 	//m_pTopSplitter = new KviTalSplitter(QSplitter::Horizontal,this,"top_splitter");
 	m_pButtonBox = new KviTalHBox(this);
 	m_pButtonBox->setSpacing(0);
-	m_pButtonBox->setMargin(0);
+	m_pButtonBox->setContentsMargins(0, 0, 0, 0);
 	m_pLabel = new KviThemedLabel(m_pButtonBox, this, "query_label");
 	updateLabelText();
 	m_pButtonBox->setStretchFactor(m_pLabel, 1);
@@ -239,7 +239,7 @@ void KviQueryWindow::getBaseLogFileName(QString & szBuffer)
 		szBuffer = windowName();
 		szBuffer += ".";
 		if(context())
-			szBuffer += console()->context()->id();
+			szBuffer += QString::number(console()->context()->id());
 		else
 			szBuffer += "0";
 	}
@@ -741,7 +741,7 @@ void KviQueryWindow::ownAction(const QString & szBuffer)
 #ifdef COMPILE_CRYPT_SUPPORT
 	if(cryptSessionInfo() && cryptSessionInfo()->m_bDoEncrypt)
 	{
-		if(szTmpBuffer[0] != KviControlCodes::CryptEscape)
+		if(szTmpBuffer[0].unicode() != KviControlCodes::CryptEscape)
 		{
 			KviCString szEncrypted;
 			cryptSessionInfo()->m_pEngine->setMaxEncryptLen(iMaxMsgLen);

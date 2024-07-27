@@ -124,11 +124,6 @@ void KviMenuBar::setupHelpPopup(QMenu * pop)
 	help->addSeparator();
 	pAction = help->addAction(*(g_pIconManager->getSmallIcon(KviIconManager::HomePage)), __tr2qs("KVIrc Home&page"));
 	pAction->setData(KVI_INTERNALCOMMAND_KVIRC_HOMEPAGE);
-	if(QString::compare(KviLocale::instance()->localeName(), QLatin1String("ru"), Qt::CaseInsensitive) == 0)
-	{
-		pAction = help->addAction(*(g_pIconManager->getSmallIcon(KviIconManager::HomePage)), __tr2qs("KVIrc Russian Home&page"));
-		pAction->setData(KVI_INTERNALCOMMAND_KVIRC_HOMEPAGE_RU);
-	}
 	help->addSeparator();
 	pAction = help->addAction(*(g_pIconManager->getSmallIcon(KviIconManager::Bug)), __tr2qs("Report a Bug / Propose Improvements"));
 	pAction->setData(KVI_INTERNALCOMMAND_OPENURL_KVIRC_BUGTRACK);
@@ -384,7 +379,7 @@ void KviMenuBar::updateToolbarsPopup()
 
 int KviMenuBar::getDefaultItemRealIndex(int iDefaultIndex)
 {
-	return std::clamp(iDefaultIndex, 0, actions().count());
+	return qBound(0, iDefaultIndex, actions().count());
 }
 
 KviScriptMenuBarItem * KviMenuBar::findMenu(const QString & text)

@@ -36,6 +36,7 @@
 #include "KviOptions.h"
 #include "KviUserInput.h"
 #include "KviThemedLineEdit.h"
+#include "KviRegExp.h"
 
 #include <QApplication>
 #include <QEvent>
@@ -45,7 +46,6 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPen>
-#include <QRegExp>
 #include <QScreen>
 #include <QToolTip>
 
@@ -141,7 +141,7 @@ void NotifierWindow::addMessage(KviWindow * pWnd, const QString & szImageId, con
 {
 	QPixmap * pIcon = nullptr;
 	QString szMessage = szText;
-	szMessage.replace(QRegExp("\r([^\r])*\r([^\r])+\r"), "\\2");
+	szMessage.replace(KviRegExp("\r([^\r])*\r([^\r])+\r"), "\\2");
 	if(!szImageId.isEmpty())
 		pIcon = g_pIconManager->getImage(szImageId);
 
@@ -224,9 +224,9 @@ void NotifierWindow::stopAutoHideTimer()
 // FIXME: The code for detecting fullscreen window does NOT take into account multi-screen setups.
 //        We also lack the code for MacOSX and Qt-only-X11 compilation.
 
-#if COMPILE_KDE_SUPPORT
-#include <kwindowsystem.h>
-#include <kx11extras.h>
+#ifdef COMPILE_KDE_SUPPORT
+#include <KWindowInfo>
+#include <KX11Extras>
 
 static bool active_window_is_full_screen()
 {
@@ -880,7 +880,11 @@ void NotifierWindow::setCursor(int iCur)
 	}
 }
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 void NotifierWindow::enterEvent(QEvent *)
+#else
+void NotifierWindow::enterEvent(QEnterEvent *)
+#endif
 {
 	if(!m_pShowHideTimer)
 	{

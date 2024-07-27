@@ -39,7 +39,6 @@
 * \def KVI_INPUT_DRAG_TIMEOUT Drag scroll speed...(smaller values = faster)
 * \def KVI_INPUT_DEF_BACK Default background color
 * \def KVI_INPUT_DEF_FORE Default foreground color
-* \def ACCEL_KEY Accelerator key
 */
 
 #include "kvi_settings.h"
@@ -65,16 +64,12 @@ class QFontMetrics;
 #define KVI_INPUT_DEF_BACK 100
 #define KVI_INPUT_DEF_FORE 101
 
-#ifndef ACCEL_KEY
-#define ACCEL_KEY(k) "\t" + QKeySequence(Qt::ControlModifier | Qt::Key_##k).toString()
-#endif
-
 class KviInputEditorSpellCheckerBlock
 {
 public:
 	QString szText;
-	int iStart;
-	int iLength;
+	qsizetype iStart;
+	qsizetype iLength;
 	bool bSpellCheckable;
 	bool bCorrect;
 };
@@ -101,6 +96,7 @@ public:
 	* \return KviInputEditor
 	*/
 	KviInputEditor(QWidget * pPar, KviWindow * pWnd, KviUserListView * pView = nullptr);
+	KviInputEditor(QWidget * pPar, QWidget * pInputParent, KviWindow * pWnd, KviUserListView * pView = nullptr);
 
 	/**
 	* \brief Destroys the Input editor object
@@ -114,6 +110,7 @@ protected:
 	static int g_iCachedHeight;
 	QString m_szTextBuffer; // original buffer
 	int m_iCursorPosition;
+	int m_iSpellCheckPosition;
 	int m_iSelectionBegin;
 	int m_iSelectionEnd;
 	int m_iMaxBufferSize;
@@ -251,7 +248,7 @@ protected:
 	* Contains owned pointers and has autodelete set to true. The most recent command
 	* is at the end. Null when no undo is available.
 	*/
-	std::vector<EditCommand *> m_UndoStack;
+	std::vector<std::unique_ptr<EditCommand>> m_UndoStack;
 
 	/**
 	* \var m_RedoStack
@@ -260,7 +257,7 @@ protected:
 	* Contains owned pointers and has autodelete set to true. The most recently undone
 	* command is at the end. Null when no redo is available.
 	*/
-	std::vector<EditCommand *> m_RedoStack;
+	std::vector<std::unique_ptr<EditCommand>> m_RedoStack;
 
 	KviInputEditorPrivate * m_p;
 
@@ -974,8 +971,8 @@ protected:
 	QVariant inputMethodQuery(Qt::InputMethodQuery query) const override;
 	void paintEvent(QPaintEvent * e) override;
 	bool checkWordSpelling(const QString & szWord);
-	void splitTextIntoSpellCheckerBlocks(const QString & szText, std::vector<KviInputEditorSpellCheckerBlock *> & lBuffer);
-	KviInputEditorSpellCheckerBlock * findSpellCheckerBlockAtCursor(std::vector<KviInputEditorSpellCheckerBlock *> & lBlocks);
+	void splitTextIntoSpellCheckerBlocks(const QString & szText, std::vector<KviInputEditorSpellCheckerBlock> & lBuffer);
+	KviInputEditorSpellCheckerBlock * findSpellCheckerBlockAtCursor(std::vector<KviInputEditorSpellCheckerBlock> & lBlocks);
 	void fillSpellCheckerCorrectionsPopup();
 
 	void rebuildTextBlocks();

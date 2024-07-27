@@ -38,6 +38,7 @@
 #include "KviIrcConnectionServerInfo.h"
 #include "KviIrcConnectionUserInfo.h"
 #include "KviHtmlGenerator.h"
+#include "KviTalHBox.h"
 #include "KviTalToolTip.h"
 #include "KviThemedLabel.h"
 
@@ -49,7 +50,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
-#include <QRegExp>
+#include <QStackedWidget>
 
 extern KviColorWindow * g_pColorWindow;
 
@@ -101,16 +102,56 @@ KviTopicWidget::KviTopicWidget(QWidget * par, KviChannelWindow * pChannel, const
 {
 	setObjectName(name);
 	m_pKviChannelWindow = pChannel;
-	m_pHistory = nullptr;
-	m_pAccept = nullptr;
-	m_pDiscard = nullptr;
 	m_pContextPopup = nullptr;
 	m_iCursorPosition = 0;
-	m_pInput = nullptr;
 
+	// Topic label widget
 	m_pLabel = new KviThemedLabel(this, pChannel, "topic_label");
 	m_pLabel->setTextFormat(Qt::RichText);
 	connect(m_pLabel, SIGNAL(doubleClicked()), this, SLOT(switchMode()));
+
+	m_pInputBox = new KviTalHBox(this);
+
+	// Topic editor input widget
+	m_pInput = new KviInputEditor(m_pInputBox, this, m_pKviChannelWindow);
+	m_pInputBox->setStretchFactor(m_pInput, 1); // allow it to fill all available space excluding history, accept and discard buttons
+	m_pInput->setReadOnly(true);
+	m_pInput->setObjectName("topicw_inputeditor");
+	connect(m_pInput, SIGNAL(enterPressed()), this, SLOT(acceptClicked()));
+	connect(m_pInput, SIGNAL(escapePressed()), this, SLOT(discardClicked()));
+	m_pInput->installEventFilter(this);
+
+
+	m_pHistory = new QPushButton(m_pInputBox);
+	m_pHistory->setObjectName("topicw_historybutton");
+	m_pHistory->setIcon(QIcon(*(g_pIconManager->getSmallIcon(KviIconManager::History))));
+	m_pHistory->setGeometry(width() - (height() << 2) + height(), 0, height(), height());
+	KviTalToolTip::add(m_pHistory, __tr2qs("History"));
+	connect(m_pHistory, SIGNAL(clicked()), this, SLOT(historyClicked()));
+
+	m_pAccept = new QPushButton(m_pInputBox);
+	m_pAccept->setObjectName("topicw_acceptbutton");
+	m_pAccept->setIcon(QIcon(*(g_pIconManager->getSmallIcon(KviIconManager::Accept))));
+	m_pAccept->setGeometry(width() - (height() << 1), 0, height(), height());
+	m_pAccept->setEnabled(false);
+	KviTalToolTip::add(m_pAccept, __tr2qs("Commit changes"));
+	connect(m_pAccept, SIGNAL(clicked()), this, SLOT(acceptClicked()));
+
+	m_pDiscard = new QPushButton(m_pInputBox);
+	m_pDiscard->setObjectName("topicw_discardbutton");
+	m_pDiscard->setIcon(QIcon(*(g_pIconManager->getSmallIcon(KviIconManager::Discard))));
+	m_pDiscard->setGeometry(width() - height(), 0, height(), height());
+	KviTalToolTip::add(m_pDiscard, __tr2qs("Discard changes"));
+	connect(m_pDiscard, SIGNAL(clicked()), this, SLOT(discardClicked()));
+
+	// Stack topic label and input box widgets
+	m_pLabelAndInputBoxStack = new QStackedWidget(this);
+
+	m_pLabelAndInputBoxStack->addWidget(m_pLabel);
+	m_pLabelAndInputBoxStack->addWidget(m_pInputBox);
+
+	// Start showing topic label widget
+	m_pLabelAndInputBoxStack->setCurrentIndex(0);
 
 	reset();
 
@@ -177,12 +218,29 @@ void KviTopicWidget::applyOptions()
 	m_pLabel->applyOptions();
 	QFont newFont(KVI_OPTION_FONT(KviOption_fontLabel));
 	newFont.setKerning(false);
+	newFont.setHintingPreference(QFont::PreferFullHinting);
 	setFont(newFont);
 	if(m_pCompletionBox)
 		m_pCompletionBox->setFont(newFont);
 
 	// reset topic html too (in case colors have been changed)
 	m_pLabel->setText(KviHtmlGenerator::convertToHtml(m_szTopic, true));
+}
+
+static bool isKviControlCode(unsigned short c)
+{
+	switch (c) {
+	case KviControlCodes::Color:
+	case KviControlCodes::Bold:
+	case KviControlCodes::Italic:
+	case KviControlCodes::Underline:
+	case KviControlCodes::Reverse:
+	case KviControlCodes::Reset:
+	case KviControlCodes::Icon:
+		return true;
+	default:
+		return false;
+	}
 }
 
 void KviTopicWidget::paintColoredText(QPainter * p, QString text, const QPalette & cg, const QRect & rect)
@@ -203,15 +261,17 @@ void KviTopicWidget::paintColoredText(QPainter * p, QString text, const QPalette
 
 	while((idx < (unsigned int)text.length()) && (curX < maxX))
 	{
-		unsigned short c = text[(int)idx].unicode();
-
+		unsigned short c;
 		unsigned int start = idx;
 
-		while((idx < (unsigned int)text.length()) && (c != KviControlCodes::Color) && (c != KviControlCodes::Bold) && (c != KviControlCodes::Italic) && (c != KviControlCodes::Underline) && (c != KviControlCodes::Reverse) && (c != KviControlCodes::Reset) && (c != KviControlCodes::Icon))
+		do
 		{
-			idx++;
 			c = text[(int)idx].unicode();
-		}
+			if (isKviControlCode(c))
+				break;
+
+			idx++;
+		} while((idx < (unsigned int)text.length()));
 
 		int len = idx - start;
 		int wdth;
@@ -450,7 +510,7 @@ QSize KviTopicWidget::sizeHint() const
 	option.state |= QStyle::State_Sunken;
 	option.features = QStyleOptionFrame::None;
 
-	return (style()->sizeFromContents(QStyle::CT_LineEdit, &option, QSize(w, h).expandedTo(QApplication::globalStrut()), this));
+	return (style()->sizeFromContents(QStyle::CT_LineEdit, &option, QSize(w, h), this));
 }
 
 void KviTopicWidget::switchMode()
@@ -474,49 +534,18 @@ void KviTopicWidget::switchMode()
 		}
 		w = w->parent();
 	}
-	if(m_pInput == nullptr)
+	if(m_pLabelAndInputBoxStack->currentIndex() == 0)
 	{
-		m_pInput = new KviInputEditor(this, m_pKviChannelWindow);
-		m_pInput->setObjectName("topicw_inputeditor");
 		m_pInput->setReadOnly(!bCanEdit);
 		if(iMaxLen > 0)
 			m_pInput->setMaxBufferSize(iMaxLen);
-		m_pInput->setGeometry(0, 0, width() - (height() << 2) + height(), height());
 		m_pInput->setText(m_szTopic);
-		connect(m_pInput, SIGNAL(enterPressed()), this, SLOT(acceptClicked()));
-		connect(m_pInput, SIGNAL(escapePressed()), this, SLOT(discardClicked()));
-		m_pInput->installEventFilter(this);
-
-		m_pHistory = new QPushButton(this);
-		m_pHistory->setObjectName("topicw_historybutton");
-		m_pHistory->setIcon(QIcon(*(g_pIconManager->getSmallIcon(KviIconManager::History))));
-		m_pHistory->setGeometry(width() - (height() << 2) + height(), 0, height(), height());
-		KviTalToolTip::add(m_pHistory, __tr2qs("History"));
-		m_pHistory->show();
-		connect(m_pHistory, SIGNAL(clicked()), this, SLOT(historyClicked()));
-
-		m_pAccept = new QPushButton(this);
-		m_pAccept->setObjectName("topicw_acceptbutton");
-		m_pAccept->setIcon(QIcon(*(g_pIconManager->getSmallIcon(KviIconManager::Accept))));
-		m_pAccept->setGeometry(width() - (height() << 1), 0, height(), height());
 		m_pAccept->setEnabled(bCanEdit);
-		m_pAccept->show();
-		KviTalToolTip::add(m_pAccept, __tr2qs("Commit changes"));
-		connect(m_pAccept, SIGNAL(clicked()), this, SLOT(acceptClicked()));
 
-		m_pDiscard = new QPushButton(this);
-		m_pDiscard->setObjectName("topicw_discardbutton");
-		m_pDiscard->setIcon(QIcon(*(g_pIconManager->getSmallIcon(KviIconManager::Discard))));
-		m_pDiscard->setGeometry(width() - height(), 0, height(), height());
-		KviTalToolTip::add(m_pDiscard, __tr2qs("Discard changes"));
-		m_pDiscard->show();
-		connect(m_pDiscard, SIGNAL(clicked()), this, SLOT(discardClicked()));
+		m_pLabelAndInputBoxStack->setCurrentIndex(1);
 
 		m_pInput->home();
-		m_pInput->show();
 		m_pInput->setFocus();
-
-		m_pLabel->hide();
 	}
 	else
 	{
@@ -573,8 +602,13 @@ bool KviTopicWidget::eventFilter(QObject * object, QEvent * e)
 			case QEvent::MouseButtonRelease:
 				if(m_pCompletionBox->rect().contains(((QMouseEvent *)e)->pos()))
 				{
+#if(QT_VERSION < QT_VERSION_CHECK(6, 4, 0))
 					QMouseEvent tmp(QEvent::MouseButtonDblClick,
 					    ((QMouseEvent *)e)->pos(), ((QMouseEvent *)e)->button(), ((QMouseEvent *)e)->buttons(), ((QMouseEvent *)e)->modifiers());
+#else
+					QMouseEvent tmp(QEvent::MouseButtonDblClick,
+					    ((QMouseEvent *)e)->position(), ((QMouseEvent *)e)->globalPosition(), ((QMouseEvent *)e)->button(), ((QMouseEvent *)e)->buttons(), ((QMouseEvent *)e)->modifiers());
+#endif
 					// will hide popup
 					QApplication::sendEvent(object, &tmp);
 					return true;
@@ -622,36 +656,17 @@ void KviTopicWidget::keyPressEvent(QKeyEvent * e)
 
 void KviTopicWidget::resizeEvent(QResizeEvent *)
 {
-	if(m_pInput)
-	{
-		m_pInput->setGeometry(0, 0, width() - (height() << 2) + height(), height());
-		m_pHistory->setGeometry(width() - (height() << 2) + height(), 0, height(), height());
-		m_pAccept->setGeometry(width() - (height() << 1), 0, height(), height());
-		m_pDiscard->setGeometry(width() - height(), 0, height(), height());
-	}
-	else
-	{
-		m_pLabel->setGeometry(0, 0, width(), height());
-	}
+	m_pLabelAndInputBoxStack->setGeometry(0, 0, width(), height());
 }
 
 void KviTopicWidget::deactivate()
 {
 	popDownListBox();
-	if(m_pInput)
+	if(m_pLabelAndInputBoxStack->currentIndex() != 0)
 	{
-		m_pInput->deleteLater();
-		m_pInput = nullptr;
-		m_pHistory->deleteLater();
-		m_pHistory = nullptr;
-		m_pAccept->deleteLater();
-		m_pAccept = nullptr;
-		m_pDiscard->deleteLater();
-		m_pDiscard = nullptr;
+		m_pAccept->setEnabled(false);
+		m_pLabelAndInputBoxStack->setCurrentIndex(0);
 	}
-
-	m_pLabel->show();
-	resizeEvent(nullptr);
 
 	if(g_pColorWindow && g_pColorWindow->isVisible())
 		g_pColorWindow->hide();

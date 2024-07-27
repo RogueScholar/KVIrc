@@ -38,7 +38,6 @@
 #include "KviWindowListBase.h"
 #include "KviMainWindow.h"
 #include "KviConfigurationFile.h"
-#include "KviMaskEditor.h"
 #include "KviControlCodes.h"
 #include "KviModeEditor.h"
 #include "KviApplication.h"
@@ -89,16 +88,17 @@ KviChannelWindow::KviChannelWindow(KviConsoleWindow * lpConsole, const QString &
 	// Button box
 	m_pButtonBox = new KviTalHBox(this);
 	m_pButtonBox->setSpacing(0);
-	m_pButtonBox->setMargin(0);
+	m_pButtonBox->setContentsMargins(0, 0, 0, 0);
 
 	m_pTopSplitter = new KviTalSplitter(Qt::Horizontal, m_pButtonBox);
 	m_pTopSplitter->setChildrenCollapsible(false);
 
 	m_pButtonContainer = new KviTalHBox(m_pButtonBox);
 	m_pButtonContainer->setSpacing(0);
-	m_pButtonContainer->setMargin(0);
+	m_pButtonContainer->setContentsMargins(0, 0, 0, 0);
 	// Topic widget on the left
 	m_pTopicWidget = new KviTopicWidget(m_pTopSplitter, this, "topic_widget");
+	m_pTopSplitter->setStretchFactor(0, 1);
 
 	connect(m_pTopicWidget, SIGNAL(topicSelected(const QString &)),
 	    this, SLOT(topicSelected(const QString &)));
@@ -245,7 +245,7 @@ KviChannelWindow::KviChannelWindow(KviConsoleWindow * lpConsole, const QString &
 
 	applyOptions();
 	m_joinTime = QDateTime::currentDateTime();
-	m_tLastReceivedWhoReply = (kvi_time_t)m_joinTime.toTime_t();
+	m_tLastReceivedWhoReply = (kvi_time_t)m_joinTime.toSecsSinceEpoch();
 }
 
 KviChannelWindow::~KviChannelWindow()
@@ -311,7 +311,7 @@ void KviChannelWindow::getBaseLogFileName(QString & szBuffer)
 		szBuffer = szChan;
 		szBuffer.append(".");
 		if(context())
-			szBuffer.append(context()->id());
+			szBuffer.append(QString::number(context()->id()));
 		else
 			szBuffer.append("0");
 	}
@@ -1363,7 +1363,7 @@ void KviChannelWindow::ownAction(const QString & szBuffer)
 #ifdef COMPILE_CRYPT_SUPPORT
 	if(cryptSessionInfo() && cryptSessionInfo()->m_bDoEncrypt)
 	{
-		if(szTmpBuffer[0] != KviControlCodes::CryptEscape)
+		if(szTmpBuffer[0].unicode() != KviControlCodes::CryptEscape)
 		{
 			KviCString szEncrypted;
 			cryptSessionInfo()->m_pEngine->setMaxEncryptLen(iMaxMsgLen);

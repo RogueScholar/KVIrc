@@ -32,6 +32,7 @@
 #include "KviMainWindow.h"
 #include "KviModule.h"
 #include "KviPointerHashTable.h"
+#include "KviRegExp.h"
 #include "KviTalVBox.h"
 #include "KviTalToolTip.h"
 #include "KviTalGroupBox.h"
@@ -173,7 +174,7 @@ OptionsDialog::OptionsDialog(QWidget * par, const QString & szGroup, bool bModal
 
 	KviTalVBox * vbox = new KviTalVBox(spl);
 	vbox->setSpacing(2);
-	vbox->setMargin(3);
+	vbox->setContentsMargins(3, 3, 3, 3);
 
 	// Controlling list view
 	m_pTreeWidget = new QTreeWidget(vbox);
@@ -188,7 +189,7 @@ OptionsDialog::OptionsDialog(QWidget * par, const QString & szGroup, bool bModal
 
 	KviTalHBox * hbox = new KviTalHBox(vbox);
 	hbox->setSpacing(2);
-	hbox->setMargin(3);
+	hbox->setContentsMargins(3, 3, 3, 3);
 
 	m_pSearchLineEdit = new QLineEdit(hbox);
 	connect(m_pSearchLineEdit, SIGNAL(textEdited(const QString &)), this, SLOT(searchClicked()));
@@ -210,7 +211,7 @@ OptionsDialog::OptionsDialog(QWidget * par, const QString & szGroup, bool bModal
 
 	vbox = new KviTalVBox(spl);
 	vbox->setSpacing(2);
-	vbox->setMargin(3);
+	vbox->setContentsMargins(3, 3, 3, 3);
 
 	m_pCategoryLabel = new QLabel("<b>&nbsp;</b>", vbox);
 	m_pCategoryLabel->setObjectName("labgeneraloptions");
@@ -342,7 +343,7 @@ bool OptionsDialog::searchInSelectors(KviOptionsWidget * pOptionsWidget, const Q
 			else
 			{
 				QString szTmp = pWidget->toolTip();
-				szTmp = szTmp.replace(QRegExp("<[^<>]+>"), "");
+				szTmp = szTmp.replace(KviRegExp("<[^<>]+>"), "");
 				szText.append(szTmp);
 				if(!szText.isEmpty())
 				{

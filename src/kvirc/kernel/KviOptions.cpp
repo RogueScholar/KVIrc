@@ -412,7 +412,12 @@ KviStringOption g_stringOptionsTable[KVI_NUM_STRING_OPTIONS] = {
 	STRING_OPTION("DefaultSrvEncoding", "", KviOption_sectFlagFrame),
 	STRING_OPTION("LogsPath", "", KviOption_sectFlagUser | KviOption_encodePath),
 	STRING_OPTION("LogsDynamicPath", "", KviOption_sectFlagUser | KviOption_encodePath),
-	STRING_OPTION("LogsExportPath", "", KviOption_sectFlagUser | KviOption_encodePath)
+	STRING_OPTION("LogsExportPath", "", KviOption_sectFlagUser | KviOption_encodePath),
+#if defined(COMPILE_ON_WINDOWS) || defined(COMPILE_ON_MINGW)
+	STRING_OPTION("QtStyle", "Fusion", KviOption_sectFlagIrcView | KviOption_resetUpdateGui | KviOption_groupTheme | KviOption_resetReloadImages)
+#else
+	STRING_OPTION("QtStyle", "", KviOption_sectFlagIrcView | KviOption_resetUpdateGui | KviOption_groupTheme | KviOption_resetReloadImages)
+#endif
 };
 
 #define STRINGLIST_OPTION(_txt, _flags) \
@@ -637,7 +642,8 @@ KviUIntOption g_uintOptionsTable[KVI_NUM_UINT_OPTIONS] = {
 	UINT_OPTION("ToolBarButtonStyle", 0, KviOption_groupTheme), // 0 = Qt::ToolButtonIconOnly
 	UINT_OPTION("MaximumBlowFishKeySize", 56, KviOption_sectFlagNone),
 	UINT_OPTION("CustomCursorWidth", 1, KviOption_resetUpdateGui),
-	UINT_OPTION("UserListMinimumWidth", 100, KviOption_sectFlagUserListView | KviOption_resetUpdateGui | KviOption_groupTheme)
+	UINT_OPTION("UserListMinimumWidth", 100, KviOption_sectFlagUserListView | KviOption_resetUpdateGui | KviOption_groupTheme),
+	UINT_OPTION("IrcViewLineVMarginType", 1, KviOption_sectFlagIrcView | KviOption_groupTheme)
 };
 
 #define FONT_OPTION(_name, _face, _size, _flags) \

@@ -63,10 +63,10 @@ static QLibrary * g_pSetupLibrary = nullptr;
 
 bool KviApplication::checkGlobalKvircDirectory(const QString szDir)
 {
-	//First check if the help subdir exists
-	QString szHelpDir = szDir;
-	szHelpDir += KVI_PATH_SEPARATOR "help";
-	if(!KviFileUtils::directoryExists(szHelpDir))
+	//First check if the config subdir exists
+	QString szConfigDir = szDir;
+	szConfigDir += KVI_PATH_SEPARATOR "config";
+	if(!KviFileUtils::directoryExists(szConfigDir))
 		return false;
 	//Then check if the pics subdir exists
 	QString szPicsDir = szDir;
@@ -298,9 +298,11 @@ bool KviApplication::findLocalKvircDirectory()
 #endif //COMPILE_KDE_SUPPORT
 
 #if defined(COMPILE_ON_WINDOWS) || defined(COMPILE_ON_MINGW)
+	const auto portable_file = QString("%1%2%3").arg(g_pApp->applicationDirPath()).arg(KVI_PATH_SEPARATOR_CHAR).arg("portable");
+	m_bPortable = KviFileUtils::fileExists(portable_file);
 	if(m_bPortable)
 	{
-		m_szLocalKvircDir = g_pApp->applicationDirPath() + KVI_PATH_SEPARATOR_CHAR + "Settings";
+		m_szLocalKvircDir = QString("%1%2%3").arg(g_pApp->applicationDirPath()).arg(KVI_PATH_SEPARATOR_CHAR).arg("Settings");
 		if(checkLocalKvircDirectory())
 			return true;
 	}

@@ -53,6 +53,7 @@
 #include "KviKvsVariantList.h"
 #include "KviIdentityProfileSet.h"
 #include "KviIrcMessage.h"
+#include "KviRegExp.h"
 
 #ifdef COMPILE_CRYPT_SUPPORT
 #include "KviCryptEngine.h"
@@ -62,7 +63,6 @@
 #include <QPixmap>
 #include <QDateTime>
 #include <QTextCodec>
-#include <QRegExp>
 #include <QByteArray>
 #include <QLocale>
 
@@ -81,7 +81,7 @@ void KviIrcServerParser::parseNumeric001(KviIrcMessage * msg)
 	// :prefix 001 target :Welcome to the Internet Relay Network <usermask>
 	// FIXME: #warning "SET THE USERMASK FROM SERVER"
 	QString szText = msg->connection()->decodeText(msg->safeTrailing());
-	QRegExp rx(" ([^ ]+)!([^ ]+)@([^ ]+)$");
+	KviRegExp rx(" ([^ ]+)!([^ ]+)@([^ ]+)$");
 	if(rx.indexIn(szText) != -1)
 	{
 		msg->connection()->userInfo()->setUnmaskedHostName(rx.cap(3));
@@ -520,7 +520,7 @@ void KviIrcServerParser::parseNumericNames(KviIrcMessage * msg)
 			// ^  +a is a weird mode: it also breaks nicknames on some networks!
 			// not a valid first char(s) of nickname, must be a mode prefix
 
-			while(pServerInfo->isSupportedModePrefix(static_cast<unsigned char>(*aux)))
+			while(pServerInfo->isSupportedModePrefix(*aux))
 			{
 				// leading umode flag(s)
 				iFlags |= pServerInfo->modeFlagFromPrefixChar(*aux);
@@ -672,7 +672,7 @@ void KviIrcServerParser::parseNumericTopicWhoTime(KviIrcMessage * msg)
 
 	QString szDate;
 	QDateTime date;
-	date.setTime_t(t);
+	date.setSecsSinceEpoch(t);
 
 	switch(KVI_OPTION_UINT(KviOption_uintOutputDatetimeFormat))
 	{
@@ -763,7 +763,7 @@ void getDateTimeStringFromCharTimeT(QString & szBuffer, const char * time_t_stri
 	if(bOk)
 	{
 		QDateTime date;
-		date.setTime_t(uTime);
+		date.setSecsSinceEpoch(uTime);
 
 		switch(KVI_OPTION_UINT(KviOption_uintOutputDatetimeFormat))
 		{
@@ -907,7 +907,7 @@ void KviIrcServerParser::parseNumericWhoReply(KviIrcMessage * msg)
 	bool bIrcOp = szFlag.indexOf('*') != -1;
 
 	KviCString trailing = msg->safeTrailing();
-	KviCString hops = trailing.getToken(' ');
+	KviCString hops = trailing.getToken(' ', true);
 	bool bHopsOk = false;
 	int iHops = hops.toInt(&bHopsOk);
 
@@ -1082,7 +1082,7 @@ void KviIrcServerParser::parseNumericWhospcrpl(KviIrcMessage * msg)
 					msg->console()->checkDefaultAvatar(e, szNick, szUser, szHost);
 				}
 				//still no avatar? check if the user is exposing the fact that he's got one
-				if(!e->avatar())
+				if(!e->avatar() && szReal.size() > 2)
 				{
 					if((szReal[0].unicode() == KviControlCodes::Color) && (szReal[1].unicode() & 4) && (szReal[2].unicode() == KviControlCodes::Reset))
 					{
@@ -1544,10 +1544,7 @@ void KviIrcServerParser::parseNumericWhoisAway(KviIrcMessage * msg)
 
 	if(!msg->haltOutput())
 	{
-		KviWindow * pOut = static_cast<KviWindow *>(msg->connection()->findQuery(szNk));
-
-		if(!pOut)
-			pOut = KVI_OPTION_BOOL(KviOption_boolWhoisRepliesToActiveWindow) ? msg->console()->activeWindow() : static_cast<KviWindow *>(msg->console());
+		KviWindow * pOut = KVI_OPTION_BOOL(KviOption_boolWhoisRepliesToActiveWindow) ? msg->console()->activeWindow() : static_cast<KviWindow *>(msg->console());
 		pOut->output(KVI_OUT_WHOISUSER, __tr2qs("%c\r!n\r%Q\r%c is away: %Q"),
 		    KviControlCodes::Bold, &szNk, KviControlCodes::Bold, &szWText);
 	}
@@ -1759,7 +1756,7 @@ void KviIrcServerParser::parseNumericWhoisIdle(KviIrcMessage * msg)
 		{
 			QString szTmp;
 			QDateTime date;
-			date.setTime_t((time_t)uTime);
+			date.setSecsSinceEpoch(uTime);
 
 			switch(KVI_OPTION_UINT(KviOption_uintOutputDatetimeFormat))
 			{
@@ -2085,7 +2082,7 @@ void KviIrcServerParser::parseNumericCreationTime(KviIrcMessage * msg)
 	KviChannelWindow * chan = msg->connection()->findChannel(szChan);
 	KviCString tmstr = msg->safeParam(2);
 	QDateTime date;
-	date.setTime_t((time_t)tmstr.toUInt());
+	date.setSecsSinceEpoch(tmstr.toUInt());
 
 	if(!tmstr.isUnsignedNum())
 	{

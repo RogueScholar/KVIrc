@@ -106,7 +106,8 @@ KviMainWindow::KviMainWindow(QWidget * pParent)
 	setWindowIcon(*(g_pIconManager->getSmallIcon(KviIconManager::KVIrc)));
 #endif
 	// set name of the app desktop file; used by wayland to load the window icon
-	QGuiApplication::setDesktopFileName("kvirc");
+	QGuiApplication::setDesktopFileName("net.kvirc.KVIrc" KVIRC_VERSION_MAJOR);
+
 	setWindowTitle(KVI_DEFAULT_FRAME_CAPTION);
 
 	m_pSplitter = new QSplitter(Qt::Horizontal, this);
@@ -274,17 +275,21 @@ void KviMainWindow::installAccelerators()
 	m_pAccellerators.push_back(KviShortcut::create(KVI_SHORTCUTS_WIN_PREV_TAB, this, SLOT(switchToPrevWindow()), nullptr, Qt::ApplicationShortcut));
 	m_pAccellerators.push_back(KviShortcut::create(KVI_SHORTCUTS_WIN_NEXT_TAB, this, SLOT(switchToNextWindow()), nullptr, Qt::ApplicationShortcut));
 
+#if(QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
 	static int accel_table[] = {
-		Qt::Key_1 + Qt::ControlModifier, // script accels...
-		Qt::Key_2 + Qt::ControlModifier,
-		Qt::Key_3 + Qt::ControlModifier,
-		Qt::Key_4 + Qt::ControlModifier,
-		Qt::Key_5 + Qt::ControlModifier,
-		Qt::Key_6 + Qt::ControlModifier,
-		Qt::Key_7 + Qt::ControlModifier,
-		Qt::Key_8 + Qt::ControlModifier,
-		Qt::Key_9 + Qt::ControlModifier,
-		Qt::Key_0 + Qt::ControlModifier,
+#else
+	static QKeyCombination accel_table[] = {
+#endif
+		Qt::Key_1 | Qt::ControlModifier, // script accels...
+		Qt::Key_2 | Qt::ControlModifier,
+		Qt::Key_3 | Qt::ControlModifier,
+		Qt::Key_4 | Qt::ControlModifier,
+		Qt::Key_5 | Qt::ControlModifier,
+		Qt::Key_6 | Qt::ControlModifier,
+		Qt::Key_7 | Qt::ControlModifier,
+		Qt::Key_8 | Qt::ControlModifier,
+		Qt::Key_9 | Qt::ControlModifier,
+		Qt::Key_0 | Qt::ControlModifier,
 		Qt::Key_F2,
 		Qt::Key_F3,
 		Qt::Key_F4,
@@ -296,18 +301,18 @@ void KviMainWindow::installAccelerators()
 		Qt::Key_F10,
 		Qt::Key_F11,
 		Qt::Key_F12,
-		Qt::Key_F1 + Qt::ShiftModifier,
-		Qt::Key_F2 + Qt::ShiftModifier,
-		Qt::Key_F3 + Qt::ShiftModifier,
-		Qt::Key_F4 + Qt::ShiftModifier,
-		Qt::Key_F5 + Qt::ShiftModifier,
-		Qt::Key_F6 + Qt::ShiftModifier,
-		Qt::Key_F7 + Qt::ShiftModifier,
-		Qt::Key_F8 + Qt::ShiftModifier,
-		Qt::Key_F9 + Qt::ShiftModifier,
-		Qt::Key_F10 + Qt::ShiftModifier,
-		Qt::Key_F11 + Qt::ShiftModifier,
-		Qt::Key_F12 + Qt::ShiftModifier
+		Qt::Key_F1 | Qt::ShiftModifier,
+		Qt::Key_F2 | Qt::ShiftModifier,
+		Qt::Key_F3 | Qt::ShiftModifier,
+		Qt::Key_F4 | Qt::ShiftModifier,
+		Qt::Key_F5 | Qt::ShiftModifier,
+		Qt::Key_F6 | Qt::ShiftModifier,
+		Qt::Key_F7 | Qt::ShiftModifier,
+		Qt::Key_F8 | Qt::ShiftModifier,
+		Qt::Key_F9 | Qt::ShiftModifier,
+		Qt::Key_F10 | Qt::ShiftModifier,
+		Qt::Key_F11 | Qt::ShiftModifier,
+		Qt::Key_F12 | Qt::ShiftModifier
 	};
 
 	for(auto key : accel_table)
@@ -321,6 +326,7 @@ void KviMainWindow::freeAccelleratorKeySequence(const QString & key)
 	{
 		if(pS->key() == kS)
 		{
+			pS->setEnabled(false);
 			m_pAccellerators.erase(
 				std::remove(m_pAccellerators.begin(), m_pAccellerators.end(), pS),
 				m_pAccellerators.end()
@@ -826,21 +832,24 @@ void KviMainWindow::closeEvent(QCloseEvent * e)
 
 		if(bGotRunningConnection)
 		{
-			QString txt =  __tr2qs("There are active connections, are you sure you wish to quit KVIrc?");
-
-			switch(QMessageBox::warning(this, __tr2qs("Confirm Close - KVIrc"), txt, __tr2qs("&Yes"), __tr2qs("&Always"), __tr2qs("&No"), 2, 2))
+			QMessageBox pMsgBox;
+			pMsgBox.setWindowTitle(__tr2qs("Confirm Close - KVIrc"));
+			pMsgBox.setText(__tr2qs("There are active connections, are you sure you wish to quit KVIrc?"));
+			pMsgBox.setIcon(QMessageBox::Question);
+			QAbstractButton * pYesButton = pMsgBox.addButton(__tr2qs("&Yes"), QMessageBox::YesRole);
+			QAbstractButton * pAlwaysButton = pMsgBox.addButton(__tr2qs("&Always"), QMessageBox::YesRole);
+			QAbstractButton * pNoButton = pMsgBox.addButton(__tr2qs("&No"), QMessageBox::NoRole);
+			pMsgBox.setDefaultButton(qobject_cast<QPushButton *>(pNoButton));
+			pMsgBox.exec();
+			if(pMsgBox.clickedButton() == pYesButton)
 			{
-				case 0:
-					// ok to close
-					break;
-				case 1:
-					// ok to close but don't ask again
-					KVI_OPTION_BOOL(KviOption_boolConfirmCloseWhenThereAreConnections) = false;
-					break;
-				case 2:
-					e->ignore();
-					return;
-					break;
+				// ok to close
+			} else if(pMsgBox.clickedButton() == pAlwaysButton) {
+				// ok to close but don't ask again
+				KVI_OPTION_BOOL(KviOption_boolConfirmCloseWhenThereAreConnections) = false;
+			} else if(pMsgBox.clickedButton() == pNoButton || pMsgBox.clickedButton() == nullptr) {
+				e->ignore();
+				return;
 			}
 		}
 	}

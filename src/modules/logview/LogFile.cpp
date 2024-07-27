@@ -34,11 +34,17 @@
 #include "KviLocale.h"
 #include "KviOptions.h"
 #include "KviFileUtils.h"
+#include "KviRegExp.h"
 
 #include <QFileInfo>
 #include <QDir>
 #include <QTextStream>
 #include <QLocale>
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+#include <QTextCodec>
+#else
+#include <QStringConverter>
+#endif
 
 #ifdef COMPILE_ZLIB_SUPPORT
 #include <zlib.h>
@@ -200,14 +206,14 @@ void LogFile::getText(QString & szText) const
 
 void LogFile::createLog(ExportType exportType, QString szLog, QString * pszFile) const
 {
-	QRegExp rx;
+	KviRegExp rx;
 	QString szLogDir, szInputBuffer, szOutputBuffer, szLine, szTmp;
 	QString szDate = date().toString("yyyy.MM.dd");
 
 	/* Save export directory - this directory path is also used in the HTML export
 	 * and info is used when working with pszFile */
 	QFileInfo info(szLog);
-	szLogDir = info.absoluteDir().absolutePath() + KVI_PATH_SEPARATOR_CHAR;
+	szLogDir = info.absoluteDir().absolutePath() + QString(KVI_PATH_SEPARATOR_CHAR);
 
 	/* Reading in log file - LogFiles are read in as bytes, so '\r' isn't
 	 * sanitised by default */
@@ -430,7 +436,11 @@ void LogFile::createLog(ExportType exportType, QString szLog, QString * pszFile)
 
 	// Ensure we're writing in UTF-8
 	QTextStream output(&log);
-	output.setCodec("UTF-8");
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+    output.setCodec(QTextCodec::codecForMib(106));
+#else
+	output.setEncoding(QStringConverter::Utf8);
+#endif
 	output << szOutputBuffer;
 
 	// Close file descriptors

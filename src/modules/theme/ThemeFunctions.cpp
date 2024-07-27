@@ -33,6 +33,7 @@
 #include "KviIconManager.h"
 #include "KviMiscUtils.h"
 #include "kvi_sourcesdate.h"
+#include "KviRegExp.h"
 #include "KviTheme.h"
 #include "KviMainWindow.h"
 
@@ -143,7 +144,7 @@ namespace ThemeFunctions
 		r.getStringInfoField("Date", szPackageDate);
 
 		QString szWarnings;
-		QString szDetails = "<html><body bgcolor=\"#ffffff\">";
+		QString szDetails = "<html><body>";
 		QString szTmp;
 
 		int iIdx = 0;
@@ -236,8 +237,8 @@ namespace ThemeFunctions
 
 		// clang-format off
 		hd.szHtmlText = QString(
-			"<html bgcolor=\"#ffffff\">" \
-				"<body bgcolor=\"#ffffff\">" \
+			"<html>" \
+				"<body>" \
 					"<p><center>" \
 						"<h2>%1 %2</h2>" \
 					"</center></p>" \
@@ -469,7 +470,7 @@ namespace ThemeFunctions
 			}
 
 			QString szSubdir = pInfo->name() + QString("-") + pInfo->version();
-			szSubdir.replace(QRegExp("[^a-zA-Z0-9_\\-.][^a-zA-Z0-9_\\-.]*"), "_");
+			szSubdir.replace(KviRegExp("[^a-zA-Z0-9_\\-.][^a-zA-Z0-9_\\-.]*"), "_");
 
 			szTmp = QString("Theme%1Name").arg(iIdx);
 			f.addInfoField(szTmp, pInfo->name());

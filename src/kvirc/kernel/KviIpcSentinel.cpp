@@ -131,10 +131,16 @@ static Window kvi_x11_findIpcSentinel(Window win)
 
 	return found;
 }
-#endif //!COMPILE_NO_X
-
+#elif defined(COMPILE_ON_WINDOWS) || defined(COMPILE_ON_MINGW)
 
 #define KVI_WINDOWS_IPC_MESSAGE 0x2FACE5
+
+#elif defined(COMPILE_DBUS_SUPPORT)
+
+#include <QDBusInterface>
+#include "KviDbusAdaptor.h"
+
+#endif
 
 bool kvi_sendIpcMessage(const char * message)
 {
@@ -184,7 +190,14 @@ bool kvi_sendIpcMessage(const char * message)
 		kvi_ipcSetRemoteCommand(sentinel, message);
 		return true;
 	}
-#endif //!COMPILE_NO_X && COMPILE_ON_WINDOWS
+#elif defined(COMPILE_DBUS_SUPPORT)
+	QDBusInterface remoteApp(KVI_DBUS_SERVICENAME, KVI_DBUS_PATH, KVI_DBUS_INTERFACENAME, QDBusConnection::sessionBus());
+	if(remoteApp.isValid())
+	{
+		remoteApp.call( "ipcMessage", message );
+		return true;
+	}
+#endif
 	return false;
 }
 
@@ -224,7 +237,11 @@ KviIpcSentinel::KviIpcSentinel() : QWidget(nullptr)
 
 #if defined(COMPILE_ON_WINDOWS) || defined(COMPILE_ON_MINGW)
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 bool KviIpcSentinel::winEvent(MSG * msg, long * result)
+#else
+bool KviIpcSentinel::winEvent(MSG * msg, qintptr * result)
+#endif
 {
 	if(msg->message == WM_COPYDATA)
 	{
@@ -318,7 +335,11 @@ struct fake_xcb_property_notify_event_t
 }
 #endif
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 bool KviIpcSentinel::nativeEvent(const QByteArray & id, void * msg, long * res)
+#else
+bool KviIpcSentinel::nativeEvent(const QByteArray & id, void * msg, qintptr * res)
+#endif
 {
 #if defined(COMPILE_ON_WINDOWS) || defined(COMPILE_ON_MINGW)
 	return winEvent((MSG *)msg, res);

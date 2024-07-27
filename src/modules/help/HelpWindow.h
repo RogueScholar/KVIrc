@@ -31,17 +31,11 @@
 #include "kvi_settings.h"
 
 #include <QTabWidget>
-#ifdef COMPILE_WEBKIT_SUPPORT
-#include <QtWebKitWidgets/QWebView>
-#else
-class QTextBrowser;
-#endif
-
 #include <QLineEdit>
 
+class QTextBrowser;
 class QProgressBar;
 class QPushButton;
-
 class HelpWidget;
 
 class HelpWindow : public KviWindow
@@ -79,11 +73,7 @@ protected:
 	void loadProperties(KviConfigurationFile * cfg) override;
 
 public:
-#ifdef COMPILE_WEBKIT_SUPPORT
-	QWebView * textBrowser();
-#else
 	QTextBrowser * textBrowser();
-#endif
 public slots:
 	void indexSelected(QListWidgetItem *);
 	void searchInIndex(const QString & s);

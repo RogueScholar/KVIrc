@@ -599,10 +599,11 @@ static QByteArray digestMd5ResponseHelper(
     )
 {
 	QCryptographicHash hash(QCryptographicHash::Md5);
+	QByteArray colon(":");
 	hash.addData(userName);
-	hash.addData(":", 1);
+	hash.addData(colon);
 	hash.addData(realm);
-	hash.addData(":", 1);
+	hash.addData(colon);
 	hash.addData(password);
 	QByteArray ha1 = hash.result();
 	if(alg.toLower() == "md5-sess")
@@ -613,9 +614,9 @@ static QByteArray digestMd5ResponseHelper(
 		// but according to the errata page at http://www.rfc-editor.org/errata_list.php, ID 1649, it
 		// must be the following line:
 		hash.addData(ha1.toHex());
-		hash.addData(":", 1);
+		hash.addData(colon);
 		hash.addData(nonce);
-		hash.addData(":", 1);
+		hash.addData(colon);
 		hash.addData(cNonce);
 		ha1 = hash.result();
 	};
@@ -624,11 +625,11 @@ static QByteArray digestMd5ResponseHelper(
 	// calculate H(A2)
 	hash.reset();
 	hash.addData(method);
-	hash.addData(":", 1);
+	hash.addData(colon);
 	hash.addData(digestUri);
 	if(qop.toLower() == "auth-int")
 	{
-		hash.addData(":", 1);
+		hash.addData(colon);
 		hash.addData(hEntity);
 	}
 	QByteArray ha2hex = hash.result().toHex();
@@ -636,17 +637,17 @@ static QByteArray digestMd5ResponseHelper(
 	// calculate response
 	hash.reset();
 	hash.addData(ha1);
-	hash.addData(":", 1);
+	hash.addData(colon);
 	hash.addData(nonce);
-	hash.addData(":", 1);
+	hash.addData(colon);
 	if(!qop.isNull())
 	{
 		hash.addData(nonceCount);
-		hash.addData(":", 1);
+		hash.addData(colon);
 		hash.addData(cNonce);
-		hash.addData(":", 1);
+		hash.addData(colon);
 		hash.addData(qop);
-		hash.addData(":", 1);
+		hash.addData(colon);
 	}
 	hash.addData(ha2hex);
 	return hash.result().toHex();
@@ -1226,7 +1227,7 @@ static QByteArray qCreatev2Hash(const QHttpAuthenticatorPrivate * ctx,
 	{
 		QCryptographicHash md4(QCryptographicHash::Md4);
 		QByteArray passUnicode = qStringAsUcs2Le(ctx->password);
-		md4.addData(passUnicode.data(), passUnicode.size());
+		md4.addData(passUnicode);
 
 		QByteArray hashKey = md4.result();
 		Q_ASSERT(hashKey.size() == 16);
@@ -1314,7 +1315,7 @@ static QByteArray qEncodeNtlmv2Response(const QHttpAuthenticatorPrivate * ctx,
 		// 369 years, 89 leap years
 		// ((369 * 365) + 89) * 24 * 3600 = 11644473600
 
-		time = Q_UINT64_C(currentTime.toTime_t() + 11644473600);
+		time = Q_UINT64_C(currentTime.toSecsSinceEpoch() + 11644473600);
 
 		// represented as 100 nano seconds
 		time = Q_UINT64_C(time * 10000000);
