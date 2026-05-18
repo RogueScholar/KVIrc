@@ -4,6 +4,7 @@
 [![macOS build](https://github.com/kvirc/KVIrc/actions/workflows/build_macos.yml/badge.svg)](https://github.com/kvirc/KVIrc/actions/workflows/build_macos.yml)
 [![Windows build](https://github.com/kvirc/KVIrc/actions/workflows/build_windows.yml/badge.svg)](https://github.com/kvirc/KVIrc/actions/workflows/build_windows.yml)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/6841/badge.svg)](https://scan.coverity.com/projects/kvirc-coverity)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FRogueScholar%2FKVIrc.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FRogueScholar%2FKVIrc?ref=badge_shield)
 
 <!--![KVIrc logo](../master/data/icons/128x128/kvirc.png "KVIrc - The visual IRC client for the masses!") -->
 
@@ -46,3 +47,6 @@ If you want to compile KVIrc on your chosen platform, we have guides on how to d
 [![KVIrc GPLv2+](https://img.shields.io/badge/KVIrc-GPLv2+-blue.svg)](./COPYING)
 [![OpenSSL](https://img.shields.io/badge/OpenSSL-Licence-orange.svg)](./doc/LICENSE-OPENSSL)
 [![OpenSSL exception](https://img.shields.io/badge/OpenSSL-Exception-orange.svg)](./doc/LICENSE-OPENSSL)
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FRogueScholar%2FKVIrc.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FRogueScholar%2FKVIrc?ref=badge_large)
